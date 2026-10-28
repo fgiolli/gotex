@@ -15,7 +15,6 @@ var dest := Vector2.ZERO
 var respawn_time := 0.0
 var xp := 0
 var potion_cd := 0.0
-var hat_color := Color.WHITE
 
 
 func setup(n: String, c: String, lvl: int) -> void:
@@ -25,16 +24,13 @@ func setup(n: String, c: String, lvl: int) -> void:
 	name_color = Color(0.6, 0.85, 1.0)
 	match c:
 		"Guerrero":
-			body_color = Color(0.85, 0.3, 0.3)
-			hat_color = Color(0.6, 0.6, 0.65)
+			sprite_row = int(GameData.CHAR_ROW["warrior"])
 			attack_range = 30.0
 		"Mago":
-			body_color = Color(0.35, 0.45, 1.0)
-			hat_color = Color(0.25, 0.15, 0.6)
+			sprite_row = int(GameData.CHAR_ROW["mage"])
 			attack_range = 170.0
 		_:
-			body_color = Color(0.3, 0.75, 0.35)
-			hat_color = Color(0.2, 0.45, 0.2)
+			sprite_row = int(GameData.CHAR_ROW["archer"])
 			attack_range = 190.0
 	speed = randf_range(150.0, 175.0)
 	recalc()
@@ -101,7 +97,7 @@ func _process(delta: float) -> void:
 		if to.length() > reach - 4.0:
 			_step(target.position, delta)
 		else:
-			facing = to.normalized()
+			set_facing(to)
 			if attack_cd <= 0.0:
 				_attack(target)
 	elif position.distance_to(dest) > 12.0:
@@ -117,7 +113,7 @@ func _process(delta: float) -> void:
 
 func _step(p: Vector2, delta: float) -> void:
 	var dir := (p - position).normalized()
-	facing = dir
+	set_facing(dir)
 	var old := position
 	position = world.resolve_position(position + dir * speed * delta, radius)
 	moving = true
@@ -149,15 +145,15 @@ func _think() -> void:
 func _attack(t: Enemy) -> void:
 	attack_cd = 0.9 if cls == "Guerrero" else 1.2
 	attack_anim = 0.2
-	var from := position + Vector2(0, -radius)
-	var to := t.position + Vector2(0, -t.radius)
+	var from := position + body_center()
+	var to := t.position + t.body_center()
 	match cls:
 		"Mago":
 			world.spawn_effect("bolt", from, to, Color(0.5, 0.7, 1.0), 6.0)
 		"Arquero":
 			world.spawn_effect("bolt", from, to, Color(0.85, 0.7, 0.4), 3.0)
 		_:
-			world.spawn_effect("slash", from + facing * 18.0, facing, Color(1, 0.9, 0.9), 24.0)
+			world.spawn_effect("slash", from + facing * 22.0, facing, Color(1, 0.9, 0.9), 24.0)
 	t.take_damage(atk * randf_range(0.85, 1.15), self, randf() < 0.1)
 
 
@@ -165,12 +161,5 @@ func _draw() -> void:
 	if dead:
 		return
 	draw_shadow()
-	draw_humanoid(hat_color)
-	match cls:
-		"Guerrero":
-			draw_weapon("sword")
-		"Mago":
-			draw_weapon("staff")
-		_:
-			draw_weapon("bow")
+	draw_sprite()
 	draw_overhead(true)

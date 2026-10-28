@@ -37,3 +37,8 @@ func _draw() -> void:
 			for i in 3:
 				var r: float = size * (k + i * 0.25)
 				draw_arc(a, r, 0, TAU, 40, Color(color, maxf(0.0, 1.0 - k - i * 0.2)), 4.0)
+		"marker":
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.5))
+			var p2 := Vector2(a.x, a.y / 0.5)
+			draw_arc(p2, size * (1.0 - k * 0.6), 0, TAU, 24, Color(color, 1.0 - k), 3.0)
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

@@ -21,6 +21,7 @@ var rng := RandomNumberGenerator.new()
 var chat_timer := 4.0
 var save_timer := 15.0
 var current_zone := -1
+var guide_seen := false
 
 
 func _ready() -> void:
@@ -83,31 +84,53 @@ func _ready() -> void:
 
 	print("Gotex listo: %d enemigos, %d jugadores, %d obstaculos" % [enemies.size(), bots.size(), obstacles.size()])
 	if load_game():
-		hud.add_message("Partida cargada. Bienvenido de vuelta!", Color(0.7, 1.0, 0.7))
+		hud.add_message("Partida cargada. ¡Bienvenido de vuelta, caballero!", Color(0.7, 1.0, 0.7))
 	else:
 		hud.show_banner("Bienvenido a Gotex Online", Color(1.0, 0.9, 0.4))
-		hud.add_message("Habla con el Capitán Rolo (!) para tu primera misión.", Color(1.0, 0.9, 0.4))
-		hud.add_message("Usa el joystick para moverte y ATACAR para pelear.", Color(0.8, 0.9, 1.0))
+		hud.add_message("Habla con el Capitán Rolo para tu primera misión.", Color(1.0, 0.9, 0.4))
+	if not guide_seen:
+		hud.open_guide.call_deferred(0)
+
+	var args := OS.get_cmdline_user_args()
+	if "--autotest" in args:
+		_run_autotest.call_deferred(args)
 
 
 func _build_town() -> void:
 	var tc := GameData.TOWN_CENTER
-	_add_decor("fountain", tc, 40.0, Vector2.ZERO)
-	var houses := [Vector2(-210, -170), Vector2(210, -170), Vector2(-220, 200), Vector2(220, 200)]
-	for h: Vector2 in houses:
-		_add_decor("house", tc + h, 58.0, Vector2(0, -32))
-	var shop := Npc.new()
-	shop.world = self
-	shop.setup("Mara la Comerciante", "shop", Color(0.7, 0.4, 0.75), Color(0.95, 0.85, 0.3))
-	shop.position = tc + Vector2(-110, 40)
-	entities.add_child(shop)
-	npcs.append(shop)
-	var captain := Npc.new()
-	captain.world = self
-	captain.setup("Capitán Rolo", "quest", Color(0.3, 0.45, 0.8), Color(0.75, 0.75, 0.8))
-	captain.position = tc + Vector2(110, 40)
-	entities.add_child(captain)
-	npcs.append(captain)
+	_add_decor("well", tc)
+	_add_decor("house", tc + Vector2(-220, -150))
+	_add_decor("house_thatch", tc + Vector2(220, -150))
+	_add_decor("house_thatch", tc + Vector2(-230, 230))
+	_add_decor("house", tc + Vector2(230, 230))
+	_add_decor("stall", tc + Vector2(-125, 30))
+	_add_decor("board", tc + Vector2(125, 20))
+	for v: Vector2 in [Vector2(-300, -40), Vector2(300, -40), Vector2(-110, -260), Vector2(110, -260)]:
+		_add_decor("banner_red" if v.x < 0 else "banner_blue", tc + v)
+	for v: Vector2 in [Vector2(-150, -120), Vector2(-135, -100), Vector2(150, 260), Vector2(-320, 130), Vector2(320, 120)]:
+		_add_decor(["barrel", "crate", "hay"][rng.randi() % 3], tc + v)
+	# torres en las cuatro puertas de la villa
+	var r := GameData.TOWN_RADIUS + 30.0
+	for dir: Vector2 in [Vector2.UP, Vector2.DOWN, Vector2.LEFT, Vector2.RIGHT]:
+		var side := dir.orthogonal()
+		_add_decor("tower", tc + dir * r + side * 95.0)
+		_add_decor("tower", tc + dir * r - side * 95.0)
+		_add_npc("Guardia", "guard", "guard", tc + dir * (r - 40.0) + side * 60.0)
+
+	_add_npc("Mara la Comerciante", "shop", "merchant", tc + Vector2(-125, 70))
+	_add_npc("Capitán Rolo", "quest", "captain", tc + Vector2(125, 70))
+	_add_npc("Aldeana", "villager", "villager", tc + Vector2(-60, 160))
+	_add_npc("Aldeano", "villager", "villager2", tc + Vector2(80, -120))
+	_add_npc("Aldeana", "villager", "villager2", tc + Vector2(-90, -170))
+
+
+func _add_npc(n: String, role: String, row_name: String, pos: Vector2) -> void:
+	var npc := Npc.new()
+	npc.world = self
+	npc.setup(n, role, row_name)
+	npc.position = pos
+	entities.add_child(npc)
+	npcs.append(npc)
 
 
 func _build_obstacles() -> void:
@@ -117,41 +140,37 @@ func _build_obstacles() -> void:
 	for i in 900:
 		var p := Vector2(gen.randf_range(40, GameData.MAP_SIZE.x - 40), gen.randf_range(40, GameData.MAP_SIZE.y - 40))
 		var zi := GameData.zone_index(p)
-		if zi == 0 or p.distance_to(GameData.TOWN_CENTER) < GameData.TOWN_RADIUS + 60.0:
+		if zi == 0 or p.distance_to(GameData.TOWN_CENTER) < GameData.TOWN_RADIUS + 130.0:
 			continue
 		if gen.randf() > float(density[zi]):
 			continue
 		# dejar libres los caminos y la guarida del jefe
-		if absf(p.x - GameData.TOWN_CENTER.x) < 60.0 or absf(p.y - GameData.TOWN_CENTER.y) < 60.0:
+		if absf(p.x - GameData.TOWN_CENTER.x) < 70.0 or absf(p.y - GameData.TOWN_CENTER.y) < 70.0:
 			continue
-		if p.distance_to(GameData.BOSS_HOME) < 220.0:
+		if p.distance_to(GameData.BOSS_HOME) < 240.0:
 			continue
 		if _blocked(p, 70.0):
 			continue
+		var roll := gen.randf()
 		match zi:
 			1:
-				_add_decor("tree", p, 14.0, Vector2.ZERO, gen.randf())
+				_add_decor("oak" if roll < 0.45 else ("oak2" if roll < 0.85 else "rock"), p)
 			2:
-				_add_decor("pine" if gen.randf() < 0.7 else "tree", p, 14.0, Vector2.ZERO, gen.randf())
+				_add_decor("pine" if roll < 0.4 else ("pine2" if roll < 0.7 else ("oak_autumn" if roll < 0.9 else "oak2")), p)
 			3:
-				if gen.randf() < 0.6:
-					_add_decor("pillar", p, 16.0, Vector2.ZERO, gen.randf())
-				else:
-					_add_decor("rock", p, 18.0, Vector2(0, -10), gen.randf())
+				_add_decor("pillar" if roll < 0.3 else ("pillar_broken" if roll < 0.6 else ("rock_big" if roll < 0.8 else "oak2")), p)
 			_:
-				if gen.randf() < 0.6:
-					_add_decor("deadtree", p, 10.0, Vector2.ZERO, gen.randf())
-				else:
-					_add_decor("rock", p, 18.0, Vector2(0, -10), gen.randf())
+				_add_decor("deadtree" if roll < 0.45 else ("tomb" if roll < 0.75 else "rock"), p)
 
 
-func _add_decor(kind: String, pos: Vector2, r: float, offset: Vector2, variant: float = 0.0) -> void:
+func _add_decor(kind: String, pos: Vector2) -> void:
+	var info: Dictionary = GameData.DECOR[kind]
 	var d = DecorScript.new()
 	d.kind = kind
-	d.variant = variant
 	d.position = pos
 	entities.add_child(d)
-	obstacles.append(Vector3(pos.x + offset.x, pos.y + offset.y, r))
+	var off: Vector2 = info["off"]
+	obstacles.append(Vector3(pos.x + off.x, pos.y + off.y, float(info["r"])))
 
 
 func _blocked(p: Vector2, extra: float) -> bool:
@@ -219,6 +238,8 @@ func spawn_effect(kind: String, a: Vector2, b: Vector2, color: Color, size: floa
 		fx.life = 0.3
 	elif kind == "levelup":
 		fx.life = 0.9
+	elif kind == "marker":
+		fx.life = 0.5
 	effects.add_child(fx)
 
 
@@ -286,9 +307,186 @@ func near_npc() -> Npc:
 	if player == null or player.dead:
 		return null
 	for n in npcs:
-		if player.position.distance_to(n.position) < 110.0:
+		if n.is_interactive() and player.position.distance_to(n.position) < 110.0:
 			return n
 	return null
+
+
+## Toque en el mundo: atacar al monstruo tocado, hablar con un NPC o caminar hasta ahí.
+func player_tap(wp: Vector2) -> void:
+	if player.dead:
+		return
+	var best: Enemy = null
+	var best_d := 70.0
+	for e in enemies:
+		if e.dead:
+			continue
+		var d := wp.distance_to(e.position + e.body_center())
+		if d < best_d + e.radius:
+			best_d = d
+			best = e
+	if best != null:
+		player.attack_target(best)
+		return
+	for n in npcs:
+		if n.is_interactive() and wp.distance_to(n.position + n.body_center()) < 60.0:
+			player.walk_to(n.position + Vector2(0, 40))
+			player.pending_npc = n
+			return
+	player.walk_to(wp)
+	spawn_effect("marker", wp, Vector2.ZERO, Color(1.0, 0.9, 0.4), 22.0)
+
+
+# --- pruebas automáticas y capturas (solo con --autotest) ----------------------
+
+func _frames(n: int) -> void:
+	for i in n:
+		await get_tree().process_frame
+
+
+func _touch(index: int, pos: Vector2, pressed: bool) -> void:
+	var ev := InputEventScreenTouch.new()
+	ev.index = index
+	ev.position = pos
+	ev.pressed = pressed
+	get_tree().root.push_input(ev)
+
+
+func _drag(index: int, pos: Vector2, rel: Vector2) -> void:
+	var ev := InputEventScreenDrag.new()
+	ev.index = index
+	ev.position = pos
+	ev.relative = rel
+	get_tree().root.push_input(ev)
+
+
+func _shot(dir: String, file: String) -> void:
+	if dir == "":
+		return
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	if img != null:
+		DirAccess.make_dir_recursive_absolute(dir)
+		img.save_png(dir.path_join(file))
+		print("AUTOTEST captura ", file)
+
+
+func _teleport(p: Vector2) -> void:
+	player.position = p
+	player.target = null
+	player.has_move_target = false
+	camera.reset_smoothing()
+
+
+func _run_autotest(args: PackedStringArray) -> void:
+	var shots := ""
+	for a in args:
+		if a.begins_with("--shots="):
+			shots = a.substr(8)
+	player.god_mode = true
+	await _frames(10)
+	hud.close_panel()
+	await _frames(5)
+	var win := Vector2(get_tree().root.size)
+	print("AUTOTEST ventana ", win, " viewport ", get_viewport().get_visible_rect().size)
+	var ok := true
+
+	# 1) joystick: arrastrar en la mitad izquierda
+	_teleport(GameData.TOWN_CENTER + Vector2(0, 90))
+	var start := player.position
+	var p0 := win * Vector2(0.15, 0.7)
+	_touch(0, p0, true)
+	for i in 15:
+		_drag(0, p0 + Vector2(6.0 * (i + 1), 0), Vector2(6, 0))
+		await get_tree().process_frame
+	await _frames(40)
+	var moved := player.position.x - start.x
+	_touch(0, p0 + Vector2(90, 0), false)
+	print("AUTOTEST joystick se movio %.1f px" % moved)
+	if moved < 40.0:
+		ok = false
+		print("AUTOTEST FALLO joystick")
+
+	# 2) tocar el suelo para caminar
+	await _frames(5)
+	start = player.position
+	var tap := win * Vector2(0.62, 0.62)
+	_touch(1, tap, true)
+	await _frames(2)
+	_touch(1, tap, false)
+	await _frames(70)
+	moved = player.position.distance_to(start)
+	print("AUTOTEST tocar-para-caminar se movio %.1f px" % moved)
+	if moved < 40.0:
+		ok = false
+		print("AUTOTEST FALLO tocar-para-caminar")
+
+	# 3) botón de ataque (abajo a la derecha) contra un monstruo cercano
+	var slime: Enemy = null
+	for e in enemies:
+		if e.type_id == "slime" and not e.dead:
+			slime = e
+			break
+	if slime != null:
+		_teleport(slime.position + Vector2(-60, 10))
+		await _frames(3)
+		var hp0 := slime.hp
+		var btn: Vector2 = hud._buttons()["attack"][0]
+		var win_btn := btn * win / hud.size
+		_touch(2, win_btn, true)
+		await _frames(60)
+		_touch(2, win_btn, false)
+		print("AUTOTEST ataque: vida del limo %.0f -> %.0f" % [hp0, slime.hp])
+		if slime.hp >= hp0 and not slime.dead:
+			ok = false
+			print("AUTOTEST FALLO ataque")
+
+	# 4) capturas de pantalla
+	if shots != "":
+		_teleport(GameData.TOWN_CENTER + Vector2(-40, 140))
+		for b in bots.slice(0, 4):
+			b.position = random_town_point()
+			b.state = "town"
+		await _frames(90)
+		bot_chat(bots[0], "¡por el rey!")
+		await _frames(20)
+		await _shot(shots, "01_villa.png")
+
+		_teleport(GameData.TOWN_CENTER + Vector2(0, -560))
+		await _frames(5)
+		var near := nearest_enemy(player.position, 2000.0)
+		if near != null:
+			_teleport(near.position + Vector2(-70, 20))
+			player.attack_target(near)
+		await _frames(50)
+		player.use_skill()
+		await _frames(6)
+		await _shot(shots, "02_combate.png")
+
+		_teleport(GameData.TOWN_CENTER + Vector2(1150, 300))
+		await _frames(60)
+		await _shot(shots, "03_bosque.png")
+
+		_teleport(GameData.TOWN_CENTER + Vector2(-1500, -1050))
+		await _frames(60)
+		await _shot(shots, "04_ruinas.png")
+
+		_teleport(GameData.BOSS_HOME + Vector2(-260, -120))
+		await _frames(60)
+		await _shot(shots, "05_rey_demonio.png")
+
+		_teleport(GameData.TOWN_CENTER + Vector2(-125, 120))
+		await _frames(30)
+		hud.open_shop()
+		await _frames(10)
+		await _shot(shots, "06_tienda.png")
+		hud.open_guide(1)
+		await _frames(10)
+		await _shot(shots, "07_guia.png")
+		hud.close_panel()
+
+	print("AUTOTEST PASS" if ok else "AUTOTEST FAIL")
+	get_tree().quit(0 if ok else 1)
 
 
 # --- eventos de juego ---------------------------------------------------------
@@ -302,7 +500,7 @@ func on_enemy_killed(e: Enemy, killer: Entity) -> void:
 		var gold := e.gold_reward + rng.randi_range(0, e.gold_reward)
 		p.gold += gold
 		p.kills += 1
-		spawn_text(e.position + Vector2(0, -e.radius * 2.0 - 36.0), "+%d XP  +%d oro" % [e.xp_reward, gold], Color(1.0, 0.9, 0.3), 16)
+		spawn_text(e.position + Vector2(0, e.top_y() - 34.0), "+%d XP  +%d oro" % [e.xp_reward, gold], Color(1.0, 0.9, 0.3), 16)
 		if rng.randf() < 0.08:
 			p.potions += 1
 			hud.add_message("¡Encontraste una poción!", Color(0.5, 1.0, 0.5))
@@ -510,6 +708,7 @@ func save_game() -> void:
 	cf.set_value("player", "quest_count", player.quest_count)
 	var pos := player.position if not player.dead else GameData.TOWN_CENTER + Vector2(0, 90)
 	cf.set_value("player", "pos", pos)
+	cf.set_value("player", "guide_v2", guide_seen)
 	cf.save(GameData.SAVE_PATH)
 
 
@@ -527,6 +726,7 @@ func load_game() -> bool:
 	player.quest_type = str(cf.get_value("player", "quest_type", ""))
 	player.quest_needed = int(cf.get_value("player", "quest_needed", 0))
 	player.quest_count = int(cf.get_value("player", "quest_count", 0))
+	guide_seen = bool(cf.get_value("player", "guide_v2", false))
 	var pos: Vector2 = cf.get_value("player", "pos", GameData.TOWN_CENTER + Vector2(0, 90))
 	player.position = resolve_position(pos, player.radius)
 	player.hp = 99999.0

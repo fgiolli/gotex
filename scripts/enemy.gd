@@ -24,7 +24,12 @@ func setup(id: String, lvl: int, home_pos: Vector2) -> void:
 	level = lvl
 	var steps := float(lvl - int(d["lvl_min"]))
 	display_name = d["name"]
-	body_color = d["color"]
+	sprite_row = int(GameData.CHAR_ROW[id])
+	sprite_scale = float(d["scale"])
+	if id == "slime":
+		sprite_top = 9.0
+	elif id == "wolf":
+		sprite_top = 11.0
 	max_hp = float(d["hp"]) * (1.0 + 0.18 * steps)
 	hp = max_hp
 	atk = float(d["atk"]) * (1.0 + 0.12 * steps)
@@ -87,12 +92,12 @@ func _process(delta: float) -> void:
 		if to.length() > reach:
 			_move_to(target.position, speed * 1.15, delta)
 		else:
-			facing = to.normalized()
+			set_facing(to)
 			if attack_cd <= 0.0:
 				attack_cd = 1.6 if is_boss else 1.3
 				attack_anim = 0.2
 				if is_boss:
-					world.spawn_effect("ring", position + Vector2(0, -radius), Vector2.ZERO, Color(1, 0.2, 0.4), 70.0)
+					world.spawn_effect("ring", position + Vector2(0, -6), Vector2.ZERO, Color(1, 0.2, 0.4), 80.0)
 				target.take_damage(atk * randf_range(0.85, 1.15), self)
 	else:
 		heal(max_hp * 0.06 * delta)
@@ -108,7 +113,7 @@ func _process(delta: float) -> void:
 
 func _move_to(p: Vector2, spd: float, delta: float) -> void:
 	var dir := (p - position).normalized()
-	facing = dir
+	set_facing(dir)
 	var wanted := position + dir * spd * delta
 	var new_pos: Vector2 = world.resolve_position(wanted, radius)
 	# los monstruos no entran al pueblo
@@ -126,48 +131,11 @@ func _move_to(p: Vector2, spd: float, delta: float) -> void:
 func _draw() -> void:
 	draw_shadow()
 	if world.player != null and world.player.target == self:
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.5))
-		draw_arc(Vector2.ZERO, radius + 8.0, 0, TAU, 32, Color(1, 0.25, 0.2, 0.9), 3.0)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.45))
+		draw_arc(Vector2.ZERO, radius + 10.0, 0, TAU, 32, Color(1, 0.25, 0.2, 0.9), 3.0)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	var c := body_center()
-	var col := current_color(body_color)
-	match type_id:
-		"slime":
-			var squish := 1.0 + sin(Time.get_ticks_msec() * 0.006 + home.x) * 0.08
-			draw_set_transform(Vector2(0, -radius * 0.8), 0.0, Vector2(1.15 * squish, 0.85 / squish))
-			draw_circle(Vector2.ZERO, radius, col.darkened(0.3))
-			draw_circle(Vector2(0, -1), radius - 2.0, col)
-			draw_circle(Vector2(-radius * 0.35, -radius * 0.4), radius * 0.25, Color(1, 1, 1, 0.5))
-			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-			draw_eyes(Vector2(0, -radius * 0.8))
-		"wolf":
-			draw_circle(c, radius, col.darkened(0.35))
-			draw_circle(c, radius - 2.0, col)
-			var side := Vector2(-facing.y, facing.x)
-			for s: float in [-1.0, 1.0]:
-				var base := c + side * radius * 0.5 * s + Vector2(0, -radius * 0.6)
-				draw_colored_polygon(PackedVector2Array([base - side * 5.0, base + side * 5.0, base + Vector2(0, -12)]), col.darkened(0.2))
-			draw_circle(c + facing * radius * 0.7, radius * 0.45, col.lightened(0.15))
-			draw_eyes(c)
-		"skeleton":
-			draw_circle(c, radius, Color(0.3, 0.28, 0.25))
-			draw_circle(c, radius - 2.0, col)
-			draw_circle(c + Vector2(-5, -2), 4.0, Color(0.1, 0.05, 0.05))
-			draw_circle(c + Vector2(5, -2), 4.0, Color(0.1, 0.05, 0.05))
-			draw_line(c + Vector2(-5, 7), c + Vector2(5, 7), Color(0.2, 0.2, 0.2), 2.0)
-			draw_weapon("sword")
-		"demon", "boss":
-			draw_circle(c, radius, col.darkened(0.45))
-			draw_circle(c, radius - 2.0, col)
-			for s: float in [-1.0, 1.0]:
-				var hb := c + Vector2(radius * 0.55 * s, -radius * 0.6)
-				draw_colored_polygon(PackedVector2Array([hb + Vector2(-4, 0), hb + Vector2(4, 0), hb + Vector2(6.0 * s, -radius * 0.7)]), Color(0.15, 0.1, 0.1))
-			draw_circle(c + Vector2(-radius * 0.3, -2), radius * 0.15, Color(1, 0.9, 0.2))
-			draw_circle(c + Vector2(radius * 0.3, -2), radius * 0.15, Color(1, 0.9, 0.2))
-			if is_boss:
-				var crown := c + Vector2(0, -radius - 2)
-				draw_colored_polygon(PackedVector2Array([
-					crown + Vector2(-14, 0), crown + Vector2(-14, -12), crown + Vector2(-7, -5),
-					crown + Vector2(0, -14), crown + Vector2(7, -5), crown + Vector2(14, -12), crown + Vector2(14, 0)]),
-					Color(1.0, 0.8, 0.2))
+	var frame := anim_frame()
+	if type_id == "slime":
+		frame = int(Time.get_ticks_msec() / 350.0 + home.x) % 2
+	draw_sprite(frame)
 	draw_overhead(true)
