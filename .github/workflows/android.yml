@@ -45,7 +45,7 @@ jobs:
         run: |
           apt-get update -qq && apt-get install -y -qq xvfb xauth libgl1-mesa-dri libglx-mesa0 > /dev/null
           mkdir -p screenshots
-          timeout 600 xvfb-run -a -s "-screen 0 2400x1080x24" godot --path . --rendering-driver opengl3 --resolution 2400x1080 -- --autotest --shots=$PWD/screenshots 2>&1 | tee shots.log || true
+          timeout 400 xvfb-run -a -s "-screen 0 2400x1080x24" godot --path . --rendering-driver opengl3 --resolution 2400x1080 -- --autotest --shots=$PWD/screenshots 2>&1 | tee shots.log || true
           grep AUTOTEST shots.log || true
           ls -la screenshots
 

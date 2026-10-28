@@ -384,6 +384,11 @@ func _run_autotest(args: PackedStringArray) -> void:
 		if a.begins_with("--shots="):
 			shots = a.substr(8)
 	player.god_mode = true
+	# seguro: nunca quedarse colgado
+	var watchdog := func() -> void:
+		print("AUTOTEST FAIL (tiempo agotado)")
+		get_tree().quit(1)
+	get_tree().create_timer(240.0).timeout.connect(watchdog)
 	await _frames(10)
 	hud.close_panel()
 	await _frames(5)
@@ -436,8 +441,10 @@ func _run_autotest(args: PackedStringArray) -> void:
 		_touch(2, win_btn, true)
 		await _frames(60)
 		_touch(2, win_btn, false)
-		print("AUTOTEST ataque: vida del limo %.0f -> %.0f" % [hp0, slime.hp])
-		if slime.hp >= hp0 and not slime.dead:
+		var killed := not is_instance_valid(slime) or slime.dead
+		var hp1 := 0.0 if killed else slime.hp
+		print("AUTOTEST ataque: vida del limo %.0f -> %.0f" % [hp0, hp1])
+		if hp1 >= hp0:
 			ok = false
 			print("AUTOTEST FALLO ataque")
 
