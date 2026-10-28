@@ -79,6 +79,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: GotexOnline-apk
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: capturas
+          path: capturas
       - name: Crear release con el APK
         uses: softprops/action-gh-release@v2
         with:
@@ -87,5 +92,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           body: |
             APK de Gotex Online para Android. Descárgalo desde el celular, ábrelo y permite "instalar apps de origen desconocido".
-          files: GotexOnline.apk
+          files: |
+            GotexOnline.apk
+            capturas/*.png
           make_latest: true
