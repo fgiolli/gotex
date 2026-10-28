@@ -81,6 +81,7 @@ func _ready() -> void:
 		entities.add_child(b)
 		bots.append(b)
 
+	print("Gotex listo: %d enemigos, %d jugadores, %d obstaculos" % [enemies.size(), bots.size(), obstacles.size()])
 	if load_game():
 		hud.add_message("Partida cargada. Bienvenido de vuelta!", Color(0.7, 1.0, 0.7))
 	else:

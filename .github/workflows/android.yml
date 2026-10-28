@@ -29,9 +29,10 @@ jobs:
       - name: Ejecutar el juego unos segundos (detectar errores)
         run: |
           godot --headless --path . --quit-after 600 2>&1 | tee run.log
-          if grep -E "SCRIPT ERROR|Parse Error|Failed to load script" run.log; then
+          if grep -E "SCRIPT ERROR|Parse Error|Failed to load script|ERROR:" run.log; then
             echo "Se encontraron errores de script"; exit 1
           fi
+          grep "Gotex listo" run.log
 
       - name: Exportar APK
         run: |
