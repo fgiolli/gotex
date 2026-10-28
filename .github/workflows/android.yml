@@ -1,0 +1,68 @@
+name: Build Android APK
+
+on:
+  push:
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: "4.3"
+
+jobs:
+  build:
+    name: Probar y exportar APK
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Preparar plantillas de exportación
+        run: |
+          mkdir -v -p ~/.local/share/godot/export_templates/ ~/.config/
+          cp -r /root/.config/godot ~/.config/godot || true
+          cp -r /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable || true
+
+      - name: Importar proyecto
+        run: godot --headless --import . || true
+
+      - name: Ejecutar el juego unos segundos (detectar errores)
+        run: |
+          godot --headless --path . --quit-after 600 2>&1 | tee run.log
+          if grep -E "SCRIPT ERROR|Parse Error|Failed to load script" run.log; then
+            echo "Se encontraron errores de script"; exit 1
+          fi
+
+      - name: Exportar APK
+        run: |
+          mkdir -v -p build/android
+          godot --headless --verbose --export-debug "Android" build/android/GotexOnline.apk
+          ls -la build/android
+
+      - name: Subir APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GotexOnline-apk
+          path: build/android/GotexOnline.apk
+
+  release:
+    name: Publicar descarga
+    needs: build
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: GotexOnline-apk
+      - name: Crear release con el APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Gotex Online (build ${{ github.run_number }})
+          target_commitish: ${{ github.sha }}
+          body: |
+            APK de Gotex Online para Android. Descárgalo desde el celular, ábrelo y permite "instalar apps de origen desconocido".
+          files: GotexOnline.apk
+          make_latest: true
